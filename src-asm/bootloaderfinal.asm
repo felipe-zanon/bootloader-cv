@@ -80,7 +80,6 @@ int 0x10
 
 ;Chamar fundo branco
 
-call DesenhaFundoBranco
 ;Com o fundo branco, escrevemos a frase
 
 call EscreveFrase
@@ -98,42 +97,32 @@ hlt ; desligar a maquina
 jmp $
 ;-------------------------------------------------------------------------
 DesenhaFundoBranco:
-push bp
-mov bp, sp
-pusha ;empurra todos os registradores para a pilha
-
-;Interrupt 10H, function OCH BIOS
-;Video: Write graphic pixel
-;Draws a color pixel at the specified coordinates in graphic mode.
-;Input: 	 AH= OCH
-;AL = Pixel color value (see below)
-;BH = Graphics page
-;cx = Screen column
-;dx = Screen lin
-xor cx, cx ;contador horizontal
-mov dx, 0x1E ; contador vertical (começa na linha 30)
-mov ah, 0x0c
-mov al, 0x0f
+    push bp
+    mov bp, sp
+    pusha
+    xor cx, cx
+    xor dx, dx       ; ← era mov dx, 0x1E (linha 30), agora começa da linha 0
+    mov ah, 0x0c
+    mov al, 0x0f
 recomeca:
-int 0x10
-inc cx
-cmp cx, 0x140
-je zeraHorizontal
-jmp recomeca 
+    int 0x10
+    inc cx
+    cmp cx, 0x140
+    je zeraHorizontal
+    jmp recomeca
 
 fim:
-popa ;devolve todos os valores para os registradores
-mov sp, bp
-pop bp
-ret
+    popa
+    mov sp, bp
+    pop bp
+    ret
 
-;--------------------------------------------------------------------------------
 zeraHorizontal:
-xor cx, cx
-inc dx
-cmp dx, 0xc8 ;c8 = 200
-je fim
-jmp recomeca
+    xor cx, cx
+    inc dx
+    cmp dx, 0xc8     ; continua até linha 200
+    je fim
+    jmp recomeca
 ;--------------------------------------------------------------------------------
 
 EscreveFrase:
@@ -194,14 +183,15 @@ ChamarParte2:
 ;ES = Buffer segment address 
 
 mov ah, 2
-mov al, 15 ;Setores para ler
+mov al, 17 ;Setores para ler
 mov ch, 0
 mov cl, 2 ;Carregando o setor 2 pois o primeiro já esta carregado
 mov dh, 0 
 mov dl, [drvnum]
 mov bx, stage2
 int 0x13
-jmp stage2
+jmp 0x07c0:stage2
+
 	
 drvnum db 0
 
@@ -251,7 +241,7 @@ push 0xc7 ; contador vertical (sp + 0x02)
 push 0x00 ; repetições (sp)
 
 mov di, sp 
-mov bl, byte [0x7c00 + dados + di] ;Numero de repetições
+mov bl, byte [0x7c00 + dados + si] ;Numero de repetições
 
 inicio:
 mov dx, [di + 0x02] ;Posição vertical
@@ -267,26 +257,32 @@ mov [di], bl ;Salva as repetições que faltam
 
 cmp bl, 0
 je trocaCor
+
 volta2:
 xor ax, ax
 mov ax, word [di + 0x04]
 inc ax
-cmp ax, 0x13f ; confere se chegamos ao fim da linha
+cmp ax, 0x140 ; confere se chegamos ao fim da linha
 je preparaRetorno
 mov [di + 0x04], ax
 jmp volta1 
 
 preparaRetorno:
-xor ax, ax
-mov [di + 0x04], ax ; contador horizontal
-mov ax, [di + 0x02] ;contador vertical
-dec ax
-mov [di + 0x02], ax
-inc si
-mov bl, byte [0x7c00 + dados + di]
-cmp bl, 0xff
-je final
-jmp inicio
+    xor ax, ax
+    mov [di + 0x04], ax ; Zera o contador horizontal (X = 0)
+    mov ax, [di + 0x02] ; Pega o contador vertical (Y)
+    dec ax              ; Sobe uma linha na tela (Y--)
+
+    ; --- O PULO DO GATO ---
+    ; Se o Y chegar na linha 29, significa que encostamos no cabeçalho preto!
+    ; Então, encerramos o desenho da imagem para proteger a frase.
+    cmp ax, 0x1E
+    je final
+    ; ----------------------
+
+    mov [di + 0x02], ax ; Salva o novo Y na memória
+    mov dx, ax          ; Atualiza o registrador DX para a interrupção de vídeo
+    jmp volta1          ; Volta a pintar a nova linha
 
 trocaCor:
 mov al, [di + 0x06]
@@ -300,17 +296,19 @@ mov al, 0x00
 
 
 salva:
-mov [di + 0x06], al
-inc si
-mov bl, byte [0x7c00 + dados + di] ;Numero de repetições
-cmp bl, 0xff
-je final
-mov [di], bl
-jmp volta2
-popa
-mov sp, bp
-pop bp
-ret
+    mov [di + 0x06], al
+    inc si
+    
+    ; --- TRAVA DE SEGURANÇA (FIM DO ARRAY) ---
+    cmp si, fim_dados - dados  ; Verifica se o array de pixels acabou
+    jge final                  ; Se sim, encerra o desenho na hora!
+    ; -----------------------------------------
+    
+    mov bl, byte [0x7c00 + dados + si] ; Numero de repetições
+    cmp bl, 0
+    je trocaCor
+    mov [di], bl
+    jmp volta2
 
 
 
@@ -359,3 +357,4 @@ dados: db 1, 255, 0, 64, 1, 255, 0, 64, 1, 255, 0, 64, 1, 198, 6, 115, 1, 196, 1
     db 161, 157, 164, 155, 166, 154, 168, 151, 171, 148, 175, 143, 181, 136, 187, 132, 191, 127, 195, 121
     db 203, 101, 1, 6, 1, 6, 209, 95, 3, 1, 1, 3, 2, 4, 215, 88, 6, 2, 1, 1
     db 1, 4, 222, 80, 9, 4, 2, 1, 235, 1, 2, 23, 20, 7, 1, 11, 255, 0, 176, 255
+fim_dados:
