@@ -58,6 +58,11 @@ nop
 nop
 nop
 nop
+nop
+nop
+nop
+nop
+nop
 
 main:
 mov [drvnum], dl
