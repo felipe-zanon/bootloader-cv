@@ -1,33 +1,21 @@
-# 💾 Bootloader CV
+# CV-Bootloader Poliglota: Sistema Operacional em Bare-Metal
 
-Um currículo executável que roda direto na BIOS (bare metal), sem necessidade de um sistema operacional. Desenvolvido inteiramente em **Assembly 16-bits (NASM)** e **C**.
+Um projeto de engenharia de software de baixo nível que transforma um currículo tradicional num arquivo poliglota: funciona como um documento **PDF legível**  e como um **Bootloader de 16-bits executável** que roda direto na BIOS.
 
-![Preview do Bootloader](assets/preview.png)
+![Demonstração do Sistema](assets/preview.png)
 
-## 🚀 O Projeto
-Em vez de enviar um PDF tradicional, decidi programar o meu currículo direto no setor de boot de um disco flexível. O programa ocupa o primeiro setor (512 bytes) para configurar o ambiente e carregar o segundo setor na memória, onde uma imagem minha e a frase "Me contrata! =D" são desenhadas na tela.
+## ⚡ Arquivo Poliglota
+O arquivo `CVBootloader.pdf` na raiz deste repositório foi construído manipulando as estruturas de cabeçalho binário. 
+1. **Como PDF:** Ao dar duplo clique no sistema operacional, os leitores de PDF interpretam a assinatura `%PDF-` e processam a tabela de referências cruzadas, exibindo o currículo estático perfeitamente.
+2. **Como Bootloader:** Ao ser montado como um disco de boot (Floppy) no VMware ou QEMU, a BIOS lê os primeiros bytes do arquivo. A assinatura do PDF é interpretada pela CPU como instruções x86 válidas e inofensivas (`AND AX, 4450h`), seguidas por um salto lógico (`jmp`) que desvia a execução diretamente para o  código em Assembly, renderizando a interface gráfica.
 
-Para fazer a imagem caber no setor de boot, desenvolvi um conversor próprio em C (`LeitorBMP`) que lê uma imagem `.bmp` monocromática e aplica um algoritmo de compressão **RLE (Run-Length Encoding)** customizado, gerando o array de bytes que o Assembly lê e desenha na tela usando a interrupção de vídeo da BIOS.
+## Arquitetura de Software e Tecnologias
+* **Assembly x86 (16-bits):** Programação bare-metal com manipulação direta de registradores e chamadas de interrupções da BIOS (`int 0x10` para vídeo VGA Modo 13h e `int 0x13` para leitura estendida de setores).
+* **Compressão RLE Customizada:** Desenvolvido um compressor em **C** para mitigar a limitação de espaço físico em disco, otimizando matrizes de pixels em sequências de bytes consecutivas contidas na memória.
+* **Segurança de Memória:** Implementada trava lógica de fim de dados prevenindo o vazamento de ponteiros de leitura para áreas corrompidas ou lixo da RAM.
 
-## ⚙️ Tecnologias e Conceitos Aplicados
-* **Assembly x86 (16-bits):** Acesso direto ao hardware via interrupções da BIOS (`int 0x10` para vídeo, `int 0x13` para leitura de disco).
-* **Modo Gráfico VGA 13h:** Manipulação direta de pixels na tela.
-* **C & Manipulação de Bits:** Leitura de arquivos binários e extração de metadados de cabeçalhos BMP.
-* **Estrutura de Dados:** Implementação de compressão RLE para otimização extrema de espaço em disco (limite de 512 bytes por setor).
-* **Estrutura FAT12:** O bootloader foi escrito respeitando a estrutura BPB do FAT12 para ser reconhecido como uma mídia válida.
+## 🚀 Como Executar o Bootloader
+Se quiser ver o código rodando em tempo real na BIOS através do emulador QEMU, execute:
 
-## 🛠️ Como rodar
-Para testar este projeto na sua máquina, você precisará do **NASM** para compilar e do **QEMU** (ou Bochs) para emular.
-
-1. Compile o bootloader:
-\`\`\`bash
-nasm -f bin src-asm/bootloader.asm -o bootloader.bin
-\`\`\`
-
-2. Execute no emulador:
-\`\`\`bash
-qemu-system-i386 -fda bootloader.bin
-\`\`\`
-
-## 👨‍💻 Sobre mim
-[Escreva um parágrafo rápido sobre você, seus interesses na área de segurança, redes, SOC ou baixo nível, e deixe seu LinkedIn/Email de contato]
+```bash
+qemu-system-i386 -fda CVBootloader.pdf
